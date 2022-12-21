@@ -1,0 +1,304 @@
+---
+title: "Projeto Google Capstone: Estudo de caso 2 - Como um compartilhamento de bicicletas
+  alcança o sucesso rápido?"
+author: "Luis Gustavo Cezar Puga"
+output:
+  pdf_document: default
+  word_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+# Sobre uma empresa
+
+Bellabeat, uma fabricante de alta tecnologia de produtos voltados para a
+saúde das mulheres. É uma pequena empresa de sucesso, mas com um grande
+potencial para expansão, principalmente no cenário global de
+dispositivos inteligentes. Urška Sršen, cofundadora e diretora decriação
+da Bellabeat, acredita que a análise de dados de condicionamento físico
+de dispositivos inteligentes pode ajudar a desbloquear um novo
+crescimento de oportunidades para a empresa. A tecnologia Bellabeat
+ajuda a capacitar mulheres com conhecimento sobre sua própria saúde e
+hábitos.
+
+# Perguntas para a análise
+
+1.  Quais são as tendências no uso de dispositivos inteligentes?
+2.  Como estas tendências podem se aplicar aos clientes da Bellabeat?
+3.  Como essas tendências podem ajudar a influenciar a estratégia de
+    marketing da Bellabeat
+
+# Tarefa de negócios
+
+Identificar potenciais oportunidades de crescimento e recomendações para
+o Melhoria da estratégia de marketing Bellabeat com base nas tendências
+em dispositivos inteligentes uso.
+
+# Fonte de Dados
+
+-   Kaggle: FitBit Fitness Tracker Data
+    (<https://www.kaggle.com/datasets/arashnic/fitbit>)
+
+-   Kernel(s) Inicial(is): Anastasiia Chebotina:
+    <https://www.kaggle.com/chebotinaa/bellabeat-case-study-with-r>\
+    Julen Aranguren:
+    <https://www.kaggle.com/code/foxsjl/bellabeat-product-analysis-a-capstone-project>\
+
+-   Reconhecimento:\
+    Index of bucket "divvy-tripdata"
+    <https://divvy-tripdata.s3.amazonaws.com/index.html>
+
+# Carregando pacotes e diretório de trabalho
+
+```{r}
+#setwd("/home/gustavo/Projetos/R/cyclistic-bike-share-a-case-study")
+library(tidyverse)
+library(skimr)
+```
+
+# Importing datasets
+
+```{r}
+activity <- read.csv("Data/Activity_Daily.csv")
+calories <- read.csv("Data/Calories_Hourly.csv")
+intensities <- read.csv("Data/Intensities_Hourly.csv")
+sleep <- read.csv("Data/Sleep_Day.csv")
+weight <- read.csv("Data/Weight_Log_Info.csv")
+```
+
+Já verifiquei os dados no Libre Office. Eu só preciso ter certeza que
+tudo foi importado corretamente usando View() e head() funções.
+
+```{r}
+head(activity)
+```
+
+Identifiquei alguns problemas com os dados do *timestamp* de data/hora.
+Então, antes da análise, preciso convertê-los para o formato *data-hora*
+e dividir em data e hora.
+
+# Corrigindo a formatação
+
+```{r}
+# intensities
+intensities$ActivityHour=as.POSIXct(intensities$ActivityHour, format="%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+intensities$time <- format(intensities$ActivityHour, format = "%H:%M:%S")
+intensities$date <- format(intensities$ActivityHour, format = "%m/%d/%y")
+# calories
+calories$ActivityHour=as.POSIXct(calories$ActivityHour, format="%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+calories$time <- format(calories$ActivityHour, format = "%H:%M:%S")
+calories$date <- format(calories$ActivityHour, format = "%m/%d/%y")
+# activity
+activity$ActivityDate=as.POSIXct(activity$ActivityDate, format="%m/%d/%Y", tz=Sys.timezone())
+activity$date <- format(activity$ActivityDate, format = "%m/%d/%y")
+# sleep
+sleep$SleepDay=as.POSIXct(sleep$SleepDay, format="%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+sleep$date <- format(sleep$SleepDay, format = "%m/%d/%y")
+```
+
+Agora que tudo está pronto, posso começar a explorar os conjuntos de
+dados.
+
+# Explorando e resumindo dados
+
+```{r}
+n_distinct(activity$Id)
+n_distinct(calories$Id)
+n_distinct(intensities$Id)
+n_distinct(sleep$Id)
+n_distinct(weight$Id)
+```
+
+Esta informação nos alerta sobre o número de participantes em cada
+conjunto de dados.
+
+Há 33 participantes nos dados de atividade, calorias e intensidades
+conjuntos, 24 no sono e apenas 8 no conjunto de dados de peso. 8
+participantes não é significativo fazer recomendações e conclusões com
+base em esses dados.
+
+Vamos dar uma olhada nas estatísticas resumidas dos conjuntos de dados:
+
+```{r}
+# activity
+activity %>%  
+  select(TotalSteps,
+         TotalDistance,
+         SedentaryMinutes, Calories) %>%
+  summary()
+print("___________________________________________________________")
+# explore num of active minutes per category
+activity %>%
+  select(VeryActiveMinutes, FairlyActiveMinutes, LightlyActiveMinutes) %>%
+  summary()
+print("___________________________________________________________")
+# calories
+calories %>%
+  select(Calories) %>%
+  summary()
+print("___________________________________________________________")
+# sleep
+sleep %>%
+  select(TotalSleepRecords, TotalMinutesAsleep, TotalTimeInBed) %>%
+  summary()
+print("___________________________________________________________")
+# weight
+weight %>%
+  select(WeightKg, BMI) %>%
+  summary()
+```
+
+**Algumas descobertas interessantes deste resumo:**
+
+-   O tempo médio sedentário é de 991 minutos ou 16 horas.
+    definitivamente precisa ser reduzido!
+
+-   A maioria dos participantes é levemente ativa.
+
+-   Em média, os participantes dormem 1 vez por 7 horas.
+
+-   O total médio de passos por dia é de 7638, um pouco menos para tendo
+    benefícios para a saúde de acordo com a pesquisa do CDC. Eles
+    encontraram que dar 8.000 passos por dia foi associado a um risco
+    51% menor para todas as causas de mortalidade (ou morte por todas as
+    causas). Levando 12.000 passos por dia foi associado a um risco 65%
+    menor em comparação com dando 4.000 passos.
+
+# Mesclando dados
+
+Antes de começar a visualizar os dados, eu preciso fundir dois conjuntos
+de dados. Vou fundir (união interna) " activity" e "sleep" nas colunas
+id e date (que eu criei anteriormente após converter os dados para o
+formato de data e hora).
+
+```{r}
+merged_data <- merge(sleep, activity, by=c('Id', 'date'))
+head(merged_data)
+```
+
+# Visualização
+
+```{r}
+ggplot(data=activity, aes(x=TotalSteps, y=Calories)) + 
+  geom_jitter() + geom_smooth() + labs(title="Total Steps vs. Calories")
+```
+
+Vejo aqui uma correlação positiva entre "Total Steps" e "Calories", o
+que é uma causalidade, pois quanto mais ativos passos damos, mais
+calorias queimamos.
+
+```{r}
+ggplot(data=sleep, aes(x=TotalMinutesAsleep, y=TotalTimeInBed)) + 
+  geom_point()+ labs(title="Total Minutes Asleep vs. Total Time in Bed")
+```
+
+A relação entre "Total Minutes Asleep" e "Total Time in Bed" parece
+linear. Portanto, se os usuários do Bellabeat querem melhorar seu sono,
+devemos considerar o uso da notificação para ir dormir.
+
+Vamos olhar para os **dados de intensidade** ao longo do tempo (de hora
+em hora).
+
+```{r}
+int_new <- intensities %>%
+  group_by(time) %>%
+  drop_na() %>%
+  summarise(mean_total_int = mean(TotalIntensity))
+
+ggplot(data=int_new, aes(x=time, y=mean_total_int)) + geom_histogram(stat = "identity", fill='darkblue') +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title="Average Total Intensity vs. Time")
+```
+
+-   Depois de visualizar "Intensidade Total por hora", descobri que as
+    pessoas são mais ativas entre 5 da manhã e 10 da noite.
+
+-   A maioria das atividades acontece entre 17h e 19h - suponho, que as
+    pessoas vão a uma academia de ginástica ou para um passeio depois de
+    terminar o trabalho. Podemos usar este tempo no aplicativo Bellabeat
+    para lembrar e motivar os usuários a ir correr ou caminhar.
+
+Vejamos a relação entre "Total Minutes Asleep" e "Sedentry Minutes".
+
+```{r}
+ggplot(data=merged_data, aes(x=TotalMinutesAsleep, y=SedentaryMinutes)) + 
+geom_point(color='darkblue') + geom_smooth() +
+  labs(title="Minutes Asleep vs. Sedentary Minutes")
+```
+
+-   Aqui podemos ver claramente a relação negativa entre "Ata
+    Sedentária" e "Hora do Sono".
+
+-   Como uma idéia: se os usuários do Bellabeat querem melhorar seu
+    sono, Bellabeat app pode recomendar a redução do tempo de
+    sedentarismo.
+
+-   Tenha em mente que precisamos apoiar esta percepção com mais dados,
+    pois a correlação entre alguns dados não significa causalidade.
+
+# Resumindo as recomendações para o negócio
+
+Como já sabemos, coletar dados sobre atividade, sono, estresse e saúde
+reprodutiva permitiu que Bellabeat empoderasse mulheres com conhecimento
+sobre sua própria saúde e hábitos. Desde que foi fundado em 2013,
+Bellabeat cresceu rapidamente e rapidamente se posicionou como um
+empresa de bem-estar voltada para a tecnologia para mulheres.
+
+Depois de analisar os dados do FitBit Fitness Tracker, encontrei alguns
+**insights isso ajudaria a influenciar a estratégia de marketing da
+Bellabeat.**
+
+![](https://cdn.pixabay.com/photo/2021/07/27/22/18/woman-6497870_960_720.jpg)
+
+**Público-alvo**
+
+Mulheres que trabalham em tempo integral (de acordo com os dados de
+intensidade horária) e passa muito tempo no computador/em reunião/focado
+no trabalho estão fazendo (de acordo com os dados de tempo sedentário).
+
+Essas mulheres fazem alguma atividade leve para se manterem saudáveis
+(de acordo com o análise do tipo de atividade). Mesmo que eles precisem
+melhorar seu cotidiano atividade tenha benefícios para a saúde. Eles
+podem precisar de algum conhecimento sobre desenvolver hábitos saudáveis
+ou motivação para continuar.
+
+-   Como não há informações de gênero sobre os participantes, presumi
+    que todos os gêneros foram apresentados e equilibrados neste
+    conjunto de dados.
+
+**A principal mensagem da campanha on-line do Bellabeat**
+
+O aplicativo Bellabeat não é apenas mais um aplicativo de atividades
+físicas. é um guia (uma amiga) que empodera as mulheres para equilibrar
+a vida pessoal e profissional vida e hábitos e rotinas saudáveis,
+educando-os e motivando-os por meio de recomendações diárias de
+aplicativos.
+
+**Ideias para o aplicativo Bellabeat**
+
+1.  O total médio de passos por dia é de 7.638, um pouco menos para
+    tendo benefícios para a saúde de acordo com a pesquisa do CDC. Eles
+    encontraram que dar 8.000 passos por dia foi associado a um risco
+    51% menor para todas as causas de mortalidade (ou morte por todas as
+    causas). Levando 12.000 passos por dia foi associado a um risco 65%
+    menor em comparação com dando 4.000 passos. Bellabeat pode encorajar
+    as pessoas a tomar pelo menos 8 000 explicando os benefícios para a
+    sua saúde.
+
+2.  Se os usuários desejam perder peso, provavelmente é uma boa ideia
+    controlar consumo calórico diário. Bellabeat pode sugerir algumas
+    ideias para almoço e jantar de baixa caloria.
+
+3.  Se os usuários quiserem melhorar o sono, o Bellabeat deve considerar
+    usando notificações de aplicativos para ir para a cama.
+
+4.  A maioria das atividades acontece entre 17h e 19h - suponho que as
+    pessoas vá a uma academia ou dê um passeio depois de terminar o
+    trabalho. Bellabeat pode usar desta vez para lembrar e motivar os
+    usuários a correr ou caminhar.
+
+5.  Uma ideia: se o usuário quiser melhorar o sono, o aplicativo
+    Bellabeat pode recomendar a redução do tempo sedentário.
