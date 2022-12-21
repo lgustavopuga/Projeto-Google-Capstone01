@@ -1,12 +1,12 @@
 # Pasta com os dados
-
+/Data/
+/Data/*
 # History files
 .Rhistory
 .Rapp.history
 
 # Session Data files
 .RData
-/Data/
 # User-specific files
 .Ruserdata
 
